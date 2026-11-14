@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b6a3b">
+<title>Kiểm đếm cây NTBP</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<script src="leaflet/leaflet.js"></script>
+<style>
+  :root{ --brand:#0b6a3b; --fg:#1f2a22; --muted:#5c6660; --line:#d5ddd8; --soft:#eef6f1; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Segoe UI,Roboto,system-ui,sans-serif;color:var(--fg);background:#fff;-webkit-tap-highlight-color:transparent}
+  body{display:flex;flex-direction:column;overflow:hidden}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:0;background:var(--brand);color:#fff;padding:10px 14px;min-height:44px;font-weight:600}
+  button.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+  button:disabled{opacity:.45}
+  button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #0b6a3b88;outline-offset:2px}
+  select,input,textarea{font:inherit;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;color:var(--fg);width:100%}
+  header{background:var(--brand);color:#fff;padding:6px 10px calc(6px) 10px;padding-top:max(6px, env(safe-area-inset-top));display:flex;gap:8px;align-items:center}
+  header h1{font-size:15px;margin:0;white-space:nowrap}
+  header select{flex:1;min-width:0;padding:6px;font-size:15px;color:var(--fg)}
+  header button{background:#ffffff22;min-height:40px;padding:6px 12px}
+  #prog{background:#f4f7f5;border-bottom:1px solid var(--line);padding:4px 10px;font-size:13px;display:flex;align-items:center;gap:8px}
+  #prog .bar{flex:1;height:8px;background:#dfe6e2;border-radius:4px;overflow:hidden}
+  #prog .bar span{display:block;height:100%;background:var(--brand)}
+  #mapWrap{position:relative;flex:1;min-height:0}
+  #map{position:absolute;inset:0;background:#e9efe9}
+  .fab{position:absolute;right:10px;z-index:500;display:flex;flex-direction:column;gap:8px}
+  .fab button{width:52px;height:52px;padding:0;border-radius:50%;font-size:20px;box-shadow:0 2px 8px #0004;background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+  .fab button.on{background:var(--brand);color:#fff}
+  #modeBar{position:absolute;left:10px;right:72px;top:10px;z-index:500;background:#fff8e1;border:1.5px solid #f0c040;border-radius:10px;padding:8px 10px;font-size:14px;display:flex;gap:8px;align-items:center}
+  #modeBar[hidden]{display:none}
+  #modeBar button{min-height:36px;padding:4px 10px;font-size:13px}
+  #gpsMsg{position:absolute;left:10px;bottom:34px;z-index:500;background:#fffc;border-radius:8px;padding:4px 8px;font-size:12px;max-width:70%}
+  /* Khung thông tin cây (dưới màn hình) */
+  #sheet{background:#fff;border-top:2px solid var(--brand);padding:10px 12px;padding-bottom:max(10px, env(safe-area-inset-bottom));box-shadow:0 -4px 14px #0002;max-height:58vh;overflow:auto}
+  #sheet[hidden]{display:none}
+  .sh-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .sh-code{font-size:19px;font-weight:700;color:var(--brand)}
+  .sh-sub{font-size:13px;color:var(--muted)}
+  .st-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+  .st-grid button{background:#fff;color:var(--fg);border:2px solid var(--line);min-height:56px;font-size:14px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .st-grid button i{display:block;width:18px;height:18px;border-radius:50%;border:1.5px solid #0004}
+  .st-grid button[aria-pressed="true"]{border-color:var(--brand);background:var(--soft);box-shadow:inset 0 0 0 2px var(--brand)}
+  .row2{display:flex;gap:8px;margin-top:8px}
+  .row2 > *{flex:1}
+  .chk{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:8px}
+  .chk input{width:22px;height:22px}
+  /* Hộp thoại menu */
+  .dlg-back{position:fixed;inset:0;background:#0008;z-index:3000;display:flex;align-items:flex-end;justify-content:center}
+  .dlg-back[hidden]{display:none}
+  .dlg{background:#fff;width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px 16px;padding-bottom:max(16px, env(safe-area-inset-bottom))}
+  .dlg h2{margin:0 0 6px;font-size:18px;color:var(--brand)}
+  .dlg h3{margin:16px 0 6px;font-size:14px;color:var(--brand);text-transform:uppercase;letter-spacing:.3px}
+  .dlg label{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
+  .dlg .btns{display:flex;flex-direction:column;gap:8px}
+  .note{background:#fff8e1;border:1px solid #f0d089;border-radius:8px;padding:8px;font-size:13px;margin:8px 0}
+  .err{background:#fdecec;border-color:#f3b4b4;color:#8a1010}
+  .ok{background:#ebfbee;border-color:#8ce99a;color:#1b5e2b}
+  .muted{color:var(--muted);font-size:13px}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:13px}
+  .legend i{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:5px;border:1.5px solid #0005}
+  #toast{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);background:var(--brand);color:#fff;padding:10px 16px;border-radius:10px;font-size:15px;z-index:4000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+  #toast.show{opacity:1}
+  #toast.bad{background:#b00}
+  .plot-lbl{background:#ffffffd9;border:1px solid var(--brand);color:var(--brand);font-weight:700;font-size:12px;padding:1px 6px;box-shadow:none}
+  .plot-lbl::before{display:none}
+  #empty{position:absolute;inset:0;z-index:600;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
+  #empty[hidden]{display:none}
+</style>
+</head>
+<body>
+  <header>
+    <h1>🌳 Kiểm đếm</h1>
+    <label for="plotSel" style="position:absolute;left:-9999px">Chọn lô</label>
+    <select id="plotSel"></select>
+    <button id="menuBtn" aria-label="Mở menu">☰ Menu</button>
+  </header>
+  <div id="prog" role="status" aria-live="polite"><span id="progTxt">Chưa có bản đồ</span><div class="bar" aria-hidden="true"><span id="progBar" style="width:0"></span></div></div>
+
+  <div id="mapWrap">
+    <div id="map" role="application" aria-label="Bản đồ cây"></div>
+    <div id="modeBar" role="status" hidden><span id="modeTxt"></span><button class="ghost" id="modeCancel">Huỷ</button></div>
+    <div class="fab" style="top:10px">
+      <button id="locBtn" aria-label="Về vị trí của tôi" title="Về vị trí của tôi">◎</button>
+      <button id="followBtn" aria-label="Bám theo vị trí của tôi" aria-pressed="false" title="Bám theo vị trí">➤</button>
+      <button id="satBtn" aria-label="Bật/tắt ảnh vệ tinh" aria-pressed="false" title="Ảnh vệ tinh">🛰</button>
+      <button id="addBtn" aria-label="Thêm cây mới" title="Thêm cây">＋</button>
+    </div>
+    <div id="gpsMsg" aria-live="polite"></div>
+    <div id="empty">
+      <div style="font-size:42px" aria-hidden="true">🗺️</div>
+      <div><b>Chưa có bản đồ.</b><br><span class="muted">Trên máy tính: tool Nông trường → tab Cài đặt → <b>Export CSV</b>. Chép 2 file <b>trees.csv</b> và <b>plots.csv</b> (thư mục exports) sang điện thoại rồi mở ở đây.</span></div>
+      <button id="emptyOpen">📂 Mở file trees.csv + plots.csv</button>
+    </div>
+  </div>
+
+  <!-- Khung thông tin cây -->
+  <section id="sheet" hidden aria-labelledby="shCode">
+    <div class="sh-head">
+      <div><div class="sh-code" id="shCode"></div><div class="sh-sub" id="shSub"></div><div class="sh-sub" id="shTool"></div></div>
+      <button class="ghost" id="shClose" aria-label="Đóng khung cây" style="min-height:40px;padding:4px 12px">✕</button>
+    </div>
+    <div class="st-grid" id="stGrid" role="group" aria-label="Tình trạng cây"></div>
+    <label for="shNote" class="muted">Ghi chú (tuỳ chọn)</label>
+    <input id="shNote" placeholder="VD: nghiêng, gốc bị mối…" autocomplete="off">
+    <div class="row2">
+      <button class="ghost" id="shPrev">← Cây trước</button>
+      <button id="shNext">Cây kế tiếp →</button>
+    </div>
+    <div class="row2">
+      <button class="ghost" id="shMove">✥ Dời vị trí</button>
+      <button class="ghost" id="shClear">↺ Bỏ kết quả</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="autoNext" checked> Tự sang cây kế tiếp sau khi chọn tình trạng</label>
+  </section>
+
+  <!-- Menu -->
+  <div class="dlg-back" id="menuBack" hidden>
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="menuTitle">Menu</h2><button class="ghost" id="menuClose" style="min-height:40px">Đóng</button></div>
+      <div id="menuWarn"></div>
+
+      <h3>1. Bản đồ</h3>
+      <div class="muted" id="mapInfo"></div>
+      <div class="btns" style="margin-top:6px">
+        <button class="ghost" id="openFiles">📂 Mở file trees.csv + plots.csv</button>
+      </div>
+      <input type="file" id="fileIn" accept=".csv,text/csv,text/comma-separated-values,application/vnd.ms-excel" multiple hidden>
+
+      <h3>2. Người kiểm</h3>
+      <label for="nameIn">Tên người kiểm (ghi vào file kết quả)</label>
+      <input id="nameIn" autocomplete="name" placeholder="VD: Lê Văn Khởi">
+
+      <h3>3. Xuất kết quả (CSV cho tool)</h3>
+      <div class="muted" id="expInfo"></div>
+      <div class="btns" style="margin-top:6px">
+        <button id="expCur">⬇ Xuất CSV lô đang xem</button>
+        <button class="ghost" id="expAll">⬇ Xuất CSV tất cả lô đã kiểm</button>
+        <button class="ghost" id="shareCur">↗ Chia sẻ CSV lô đang xem (Zalo, OneDrive…)</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Trên máy tính: tool → tab <b>Thiết lập lô</b> → <b>Import cây từ CSV</b> → chọn file này. Nên bấm <b>Tạo backup</b> (tab Cài đặt) trước khi Import.</div>
+
+      <h3>4. Ảnh vệ tinh offline</h3>
+      <div class="muted">Khi đang có mạng (nên dùng Wi-Fi), tải sẵn ảnh vệ tinh khu vực các lô để ra vườn mất sóng vẫn xem được.</div>
+      <div class="btns" style="margin-top:6px"><button class="ghost" id="tileDl">🛰 Tải ảnh vệ tinh khu vực nông trường</button></div>
+      <div class="muted" id="tileInfo" aria-live="polite"></div>
+
+      <h3>Chú thích màu</h3>
+      <div class="legend" id="legend"></div>
+
+      <h3>Dữ liệu trên máy</h3>
+      <div class="btns"><button class="ghost" id="wipe" style="color:#b00;border-color:#b00">🗑 Xoá kết quả kiểm đếm trên máy</button></div>
+      <div class="muted" style="margin-top:4px">Chỉ xoá sau khi đã xuất file và Import vào tool. Bấm 2 lần để xác nhận.</div>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// =====================================================================
+// APP KIỂM ĐẾM CÂY — chạy offline trên điện thoại
+// Đầu vào : trees.csv + plots.csv (tool → Cài đặt → Export CSV)
+// Đầu ra  : CSV đúng định dạng "Import cây từ CSV" của tool (giữ nguyên mã cây)
+// Dữ liệu lưu trong IndexedDB của điện thoại sau mỗi lần bấm.
+// =====================================================================
+const $ = s => document.querySelector(s);
+const esc = s => (s==null ? "" : String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ST = {   // cùng màu với tool trên PC
+  song:     {t:"Khoẻ",          c:"#2f9e44"},
+  benh_nhe: {t:"Bệnh nhẹ",      c:"#fab005"},
+  benh_vua: {t:"Bệnh vừa",      c:"#f76707"},
+  benh_nang:{t:"Bệnh nặng",     c:"#9c36b5"},
+  chet:     {t:"Chết",          c:"#ff0000"},
+  khong_co: {t:"Không có cây",  c:"#adb5bd"},
+};
+const TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const TILE_CACHE = "kiemdem-tiles-v1";
+
+let DATA = null;          // {plots:{code:{cay_trong, polygon}}, trees:{code:[tree]}, source, loadedAt}
+let SURVEY = {};          // ma_cay → {st, note, lat, lng, moved, at, by}
+let ADDED = [];           // cây thêm mới: {ma_cay, plot, row, col, lat, lng}
+let CUR = "", SEL = null, MODE = "", lastExport = "", dirty = 0;
+const TIDX = new Map();   // ma_cay → {t, plot, m, added}
+
+// ---------- tiện ích ----------
+function toast(msg, bad){ const t = $("#toast"); t.textContent = msg; t.className = "show" + (bad ? " bad" : ""); clearTimeout(toast._t); toast._t = setTimeout(()=>t.className = "", 2200); }
+const today = () => { const d = new Date(), p = n => String(n).padStart(2,"0"); return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()); };
+const nowIso = () => { const d = new Date(), p = n => String(n).padStart(2,"0"); return today() + "T" + p(d.getHours()) + ":" + p(d.getMinutes()); };
+
+// ---------- IndexedDB (lưu bền trên điện thoại) ----------
+function idb(){ return new Promise((res, rej)=>{ const r = indexedDB.open("kiemdem", 1); r.onupgradeneeded = ()=>r.result.createObjectStore("kv"); r.onsuccess = ()=>res(r.result); r.onerror = ()=>rej(r.error); }); }
+async function dbGet(k){ try{ const db = await idb(); return await new Promise(r=>{ const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = ()=>r(q.result); q.onerror = ()=>r(null); }); }catch{ return null; } }
+async function dbSet(k, v){ const db = await idb(); return new Promise((res, rej)=>{ const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = res; tx.onerror = ()=>rej(tx.error); }); }
+let saveTimer = null;
+function saveSurvey(){   // gộp các lần bấm liên tiếp, ghi trong ~0,3 giây
+  dirty++; clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{ await dbSet("survey", SURVEY); await dbSet("added", ADDED); await dbSet("dirty", dirty); }
+    catch(e){ toast("Lỗi lưu trên máy: " + e.message, true); }
+  }, 300);
+}
+
+// ---------- đọc CSV ----------
+function parseCsv(text){
+  text = text.replace(/^﻿/, "");
+  const rows = [];
+  for(const line of text.split(/\r?\n/)){
+    if(!line.trim()) continue;
+    const out = []; let cur = "", q = false;
+    for(let i=0; i<line.length; i++){
+      const ch = line[i];
+      if(q){ if(ch === '"' && line[i+1] === '"'){ cur += '"'; i++; } else if(ch === '"') q = false; else cur += ch; }
+      else if(ch === '"') q = true; else if(ch === ","){ out.push(cur); cur = ""; } else cur += ch;
+    }
+    out.push(cur); rows.push(out.map(s=>s.trim()));
+  }
+  return rows;
+}
+const toObjs = rows => { const h = rows[0].map(x=>x.toLowerCase()); return rows.slice(1).map(r=>Object.fromEntries(h.map((k,i)=>[k, r[i] ?? ""]))); };
+function parseWkt(w){   // POLYGON((lng lat, lng lat, …)) → [[lat,lng],…]
+  const m = (w||"").match(/\(\(([^)]+)\)\)/); if(!m) return [];
+  return m[1].split(",").map(p=>p.trim().split(/\s+/).map(Number)).filter(a=>a.length>=2 && !a.some(isNaN)).map(([lng,lat])=>[lat,lng]);
+}
+// Trạng thái hiện tại theo tool (cột trang_thai_hien_tai + muc_do_benh của trees.csv)
+function toolStatus(r){
+  const k = r.trang_thai_hien_tai || r.trang_thai || "song", md = (r.muc_do_benh||"").toLowerCase();
+  if(k === "benh") return md.startsWith("nh") ? "benh_nhe" : md.startsWith("n") ? "benh_nang" : "benh_vua";
+  return k;
+}
+async function openFiles(files){
+  let trees = null, plots = null, names = [];
+  for(const f of files){
+    const rows = parseCsv(await f.text()); if(rows.length < 2) continue;
+    const h = rows[0].map(x=>x.toLowerCase().replace(/^﻿/, ""));
+    if(h.includes("ma_cay")) { trees = toObjs(rows); names.push(f.name); }
+    else if(h.includes("polygon_wkt")) { plots = toObjs(rows); names.push(f.name); }
+  }
+  if(!trees){ toast("Chưa có file trees.csv (cần cột ma_cay)", true); return; }
+  const d = {plots:{}, trees:{}, source: names.join(" + "), loadedAt: nowIso()};
+  let bad = 0;
+  for(const r of trees){
+    const code = r.plot_code || r.plot, row = +r.row, col = +r.col, lat = +r.lat, lng = +r.lng;
+    if(!code || !r.ma_cay || isNaN(lat) || isNaN(lng)){ bad++; continue; }
+    (d.trees[code] ||= []).push({ma_cay:r.ma_cay, row, col, lat, lng, cay_trong:r.cay_trong||"", giong:r.giong||"", ngay_trong:r.ngay_trong||"", tool:toolStatus(r)});
+    if(!d.plots[code]) d.plots[code] = {cay_trong:r.cay_trong||"", polygon:[]};
+  }
+  for(const p of plots||[]) if(d.plots[p.code]) d.plots[p.code].polygon = parseWkt(p.polygon_wkt);
+  for(const c in d.trees) d.trees[c].sort((a,b)=>a.row-b.row || a.col-b.col);
+  DATA = d; await dbSet("data", DATA);
+  const n = Object.values(d.trees).reduce((s,a)=>s+a.length, 0);
+  toast("Đã mở " + Object.keys(d.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây" + (bad ? " (" + bad + " dòng lỗi)" : ""));
+  if(!plots) toast("Không có plots.csv — sẽ không vẽ ranh giới lô", true);
+  buildMap(true);
+}
+
+// ---------- bản đồ ----------
+let MAP, LAYER_PLOTS, LAYER_TREES, SAT, GPS_DOT, GPS_ACC, follow = false;
+function initMap(){
+  MAP = L.map("map", {preferCanvas:true, zoomControl:false, maxZoom:22, attributionControl:true});
+  MAP.attributionControl.setPrefix(false);
+  MAP.setView([12.04, 106.862], 15);
+  L.control.zoom({position:"bottomright"}).addTo(MAP);
+  L.control.scale({imperial:false, position:"bottomleft"}).addTo(MAP);
+  SAT = L.tileLayer(TILE_URL, {maxZoom:22, maxNativeZoom:19, attribution:"Ảnh © Esri"});
+  LAYER_PLOTS = L.layerGroup().addTo(MAP);
+  LAYER_TREES = L.layerGroup().addTo(MAP);
+  MAP.on("click", onMapClick);
+  MAP.on("zoomend", ()=>{ const r = radius(); for(const v of TIDX.values()) v.m.setRadius(v.t.ma_cay === SEL ? r*1.6+2 : r); });
+  MAP.on("dragstart", ()=>{ if(follow) setFollow(false); });
+}
+function radius(){   // ~3 m ngoài thực địa, 3–12 px
+  const z = MAP.getZoom(), lat = MAP.getCenter().lat, mpp = 156543.03392 * Math.cos(lat*Math.PI/180) / Math.pow(2, z);
+  return Math.max(3, Math.min(12, 3 / mpp));
+}
+function styleOf(code){
+  const v = TIDX.get(code), s = SURVEY[code], sel = code === SEL;
+  if(sel) return {fillColor: s ? ST[s.st].c : "#ffffff", color:"#1c7ed6", weight:4, opacity:1, fillOpacity:1, dashArray:null};
+  if(!s) return {fillColor:"#ffffff", color:"#495057", weight:1.5, opacity:0.9, fillOpacity:0.85, dashArray:null};   // chưa kiểm
+  if(s.st === "khong_co") return {fillColor:ST.khong_co.c, color:"#000", weight:2, opacity:1, fillOpacity:0.6, dashArray:"3 3"};
+  if(s.st === "chet") return {fillColor:ST.chet.c, color:"#000", weight:2.5, opacity:1, fillOpacity:1, dashArray:null};
+  return {fillColor:ST[s.st].c, color:"#1b2a20", weight:1, opacity:0.8, fillOpacity:1, dashArray:null};
+}
+function restyle(code){ const v = TIDX.get(code); if(!v) return; v.m.setStyle(styleOf(code)); v.m.setRadius(code === SEL ? radius()*1.6+2 : radius()); if(code === SEL) v.m.bringToFront(); }
+function posOf(t){ const s = SURVEY[t.ma_cay]; return s && s.lat != null ? [s.lat, s.lng] : [t.lat, t.lng]; }
+
+function buildMap(fit){
+  $("#empty").hidden = !!DATA;
+  if(!DATA) return;
+  LAYER_PLOTS.clearLayers(); LAYER_TREES.clearLayers(); TIDX.clear();
+  const sel = $("#plotSel"), codes = Object.keys(DATA.trees).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+  sel.innerHTML = codes.map(c=>`<option value="${esc(c)}">Lô ${esc(c)}</option>`).join("");
+  if(!CUR || !DATA.trees[CUR]) CUR = codes[0];
+  sel.value = CUR;
+  for(const [code, p] of Object.entries(DATA.plots)){
+    if(p.polygon.length < 3) continue;
+    L.polygon(p.polygon, {color:"#0b6a3b", weight:2, fillOpacity:0.04, interactive:false})
+      .bindTooltip(code, {permanent:true, direction:"center", className:"plot-lbl"}).addTo(LAYER_PLOTS);
+  }
+  const r = radius();
+  const add = (t, plot, added)=>{
+    const m = L.circleMarker(posOf(t), {radius:r, ...styleOf(t.ma_cay)});
+    m.on("click", e=>{ L.DomEvent.stopPropagation(e); onTreeTap(t.ma_cay); });
+    m.addTo(LAYER_TREES);
+    TIDX.set(t.ma_cay, {t, plot, m, added});
+  };
+  for(const [code, list] of Object.entries(DATA.trees)) for(const t of list) add(t, code, false);
+  for(const t of ADDED) add(t, t.plot, true);
+  if(fit) fitPlot();
+  updateProgress(); updateMenu();
+}
+function fitPlot(){
+  const pts = [...TIDX.values()].filter(v=>v.plot === CUR).map(v=>v.m.getLatLng());
+  if(pts.length) MAP.fitBounds(L.latLngBounds(pts), {padding:[20,20]});
+}
+function plotTrees(code){ return [...TIDX.values()].filter(v=>v.plot === code); }
+function updateProgress(){
+  if(!DATA){ $("#progTxt").textContent = "Chưa có bản đồ"; $("#progBar").style.width = "0"; return; }
+  const list = plotTrees(CUR), done = list.filter(v=>SURVEY[v.t.ma_cay]).length;
+  const pct = list.length ? Math.round(done*100/list.length) : 0;
+  $("#progTxt").textContent = "Lô " + CUR + ": đã kiểm " + done.toLocaleString("vi-VN") + "/" + list.length.toLocaleString("vi-VN") + " cây (" + pct + "%)";
+  $("#progBar").style.width = pct + "%";
+}
+
+// ---------- chọn cây / khung thông tin ----------
+function onTreeTap(code){
+  if(MODE === "add") return;    // đang thêm cây: chạm bản đồ, không chọn cây
+  if(MODE === "move") return;
+  selectTree(code, false);
+}
+function selectTree(code, pan){
+  const old = SEL; SEL = code;
+  if(old) restyle(old);
+  restyle(code);
+  const v = TIDX.get(code); if(!v) return;
+  if(v.plot !== CUR){ CUR = v.plot; $("#plotSel").value = CUR; updateProgress(); }
+  if(pan) MAP.panTo(v.m.getLatLng());
+  renderSheet();
+}
+function closeSheet(){ const old = SEL; SEL = null; if(old) restyle(old); $("#sheet").hidden = true; setMode(""); MAP.invalidateSize(); }
+function renderSheet(){
+  const v = TIDX.get(SEL); if(!v){ closeSheet(); return; }
+  const s = SURVEY[SEL], t = v.t;
+  $("#shCode").textContent = t.ma_cay + (v.added ? " (cây thêm mới)" : "");
+  $("#shSub").textContent = "Lô " + v.plot + " · Hàng " + t.row + " · Cột " + t.col + (s && s.moved ? " · đã dời vị trí" : "");
+  $("#shTool").textContent = v.added ? "" : "Theo tool: " + (ST[t.tool]?.t || t.tool || "—") + (s ? " · Đã kiểm lúc " + s.at.slice(11,16) + (s.by ? " — " + s.by : "") : " · Chưa kiểm");
+  $("#stGrid").innerHTML = Object.entries(ST).map(([k, o])=>`<button type="button" data-st="${k}" aria-pressed="${s && s.st === k}">
+      <i style="background:${o.c};${k === "chet" ? "border:3px solid #000" : k === "khong_co" ? "border:2px dashed #000" : ""}"></i>${o.t}</button>`).join("");
+  $("#shNote").value = s?.note || "";
+  $("#shClear").disabled = !s;
+  const {prev, next} = neighbors(SEL);
+  $("#shPrev").disabled = !prev; $("#shNext").disabled = !next;
+  const wasHidden = $("#sheet").hidden;
+  $("#sheet").hidden = false;
+  // Khung cây mở ra làm bản đồ thấp lại → tính lại kích thước rồi đưa cây vào giữa
+  if(wasHidden) setTimeout(()=>{ MAP.invalidateSize({pan:false}); MAP.setView(v.m.getLatLng(), Math.max(MAP.getZoom(), 19), {animate:false}); }, 60);
+}
+// Cây trước / kế tiếp: theo thứ tự hàng → cột trong lô (cây thêm mới không nằm trong thứ tự)
+function neighbors(code){
+  const v = TIDX.get(code); if(!v || v.added) return {};
+  const list = DATA.trees[v.plot] || [], i = list.findIndex(t=>t.ma_cay === code);
+  return {prev: list[i-1]?.ma_cay, next: list[i+1]?.ma_cay};
+}
+function setStatus(st){
+  const v = TIDX.get(SEL); if(!v) return;
+  const prev = SURVEY[SEL] || {};
+  SURVEY[SEL] = {...prev, st, note: $("#shNote").value.trim(), at: nowIso(), by: $("#nameIn").value.trim() || prev.by || ""};
+  saveSurvey(); restyle(SEL); updateProgress();
+  if(navigator.vibrate) navigator.vibrate(25);
+  const nx = neighbors(SEL).next;
+  if($("#autoNext").checked && nx && !v.added) selectTree(nx, true);
+  else renderSheet();
+}
+$("#stGrid").addEventListener("click", e=>{ const b = e.target.closest("button[data-st]"); if(b) setStatus(b.dataset.st); });
+$("#shNote").addEventListener("change", ()=>{ if(SURVEY[SEL]){ SURVEY[SEL].note = $("#shNote").value.trim(); saveSurvey(); } });
+$("#shClose").onclick = closeSheet;
+$("#shPrev").onclick = ()=>{ const p = neighbors(SEL).prev; if(p) selectTree(p, true); };
+$("#shNext").onclick = ()=>{ const n = neighbors(SEL).next; if(n) selectTree(n, true); };
+$("#shClear").onclick = ()=>{
+  const v = TIDX.get(SEL);
+  if(v.added){   // cây thêm mới: bỏ hẳn
+    ADDED = ADDED.filter(a=>a.ma_cay !== SEL); delete SURVEY[SEL]; LAYER_TREES.removeLayer(v.m); TIDX.delete(SEL); SEL = null;
+    saveSurvey(); $("#sheet").hidden = true; updateProgress(); toast("Đã bỏ cây thêm mới"); return;
+  }
+  delete SURVEY[SEL]; v.m.setLatLng([v.t.lat, v.t.lng]); saveSurvey(); restyle(SEL); updateProgress(); renderSheet(); toast("Đã bỏ kết quả kiểm cây này");
+};
+
+// ---------- dời vị trí / thêm cây: chạm vào bản đồ ----------
+function setMode(m, text){
+  MODE = m;
+  $("#modeBar").hidden = !m; $("#modeTxt").textContent = text || "";
+  $("#addBtn").classList.toggle("on", m === "add");
+  MAP.getContainer().style.cursor = m ? "crosshair" : "";
+}
+$("#modeCancel").onclick = ()=>setMode("");
+$("#shMove").onclick = ()=>setMode("move", "Chạm vào đúng vị trí của cây " + SEL + " trên bản đồ");
+$("#addBtn").onclick = ()=>{
+  if(!DATA){ toast("Chưa mở bản đồ", true); return; }
+  if(MODE === "add"){ setMode(""); return; }
+  setMode("add", "Chạm vào vị trí cây mới (lô " + CUR + ")");
+};
+function onMapClick(e){
+  if(MODE === "move" && SEL){
+    const v = TIDX.get(SEL), ll = e.latlng;
+    v.m.setLatLng(ll);
+    if(v.added){ v.t.lat = +ll.lat.toFixed(7); v.t.lng = +ll.lng.toFixed(7); }
+    else{
+      const prev = SURVEY[SEL] || {st: v.t.tool && ST[v.t.tool] ? v.t.tool : "song", at: nowIso(), by: $("#nameIn").value.trim()};
+      SURVEY[SEL] = {...prev, lat:+ll.lat.toFixed(7), lng:+ll.lng.toFixed(7), moved:true, at: nowIso()};
+    }
+    saveSurvey(); setMode(""); restyle(SEL); updateProgress(); renderSheet(); toast("Đã dời vị trí " + SEL);
+    return;
+  }
+  if(MODE === "add"){
+    // Mã cây mới: <Lô>-N001, -N002 … (không đụng mã cũ); hàng/cột theo cây gần nhất trong lô
+    const ll = e.latlng, plot = CUR;
+    let near = null, best = Infinity;
+    for(const v of TIDX.values()){ if(v.plot !== plot) continue; const d = MAP.distance(ll, v.m.getLatLng()); if(d < best){ best = d; near = v.t; } }
+    const used = [...TIDX.keys()].filter(k=>k.startsWith(plot + "-N")).map(k=>+k.slice(plot.length + 2)).filter(n=>!isNaN(n));
+    const ma = plot + "-N" + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, "0");
+    const t = {ma_cay:ma, plot, row: near ? near.row : 1, col: near ? near.col : 1, lat:+ll.lat.toFixed(7), lng:+ll.lng.toFixed(7),
+               cay_trong: DATA.plots[plot]?.cay_trong || near?.cay_trong || "", giong:"", ngay_trong:"", tool:""};
+    ADDED.push(t);
+    SURVEY[ma] = {st:"song", note:"", at: nowIso(), by: $("#nameIn").value.trim()};
+    const m = L.circleMarker([t.lat, t.lng], {radius: radius(), ...styleOf(ma)});
+    m.on("click", ev=>{ L.DomEvent.stopPropagation(ev); onTreeTap(ma); });
+    m.addTo(LAYER_TREES); TIDX.set(ma, {t, plot, m, added:true});
+    saveSurvey(); setMode(""); selectTree(ma, false); updateProgress();
+    toast("Đã thêm cây " + ma + " — chọn tình trạng");
+    return;
+  }
+}
+
+// ---------- GPS: chỉ để biết mình đang đứng đâu ----------
+let lastFix = null;
+function setFollow(on){ follow = on; $("#followBtn").classList.toggle("on", on); $("#followBtn").setAttribute("aria-pressed", on); if(on && lastFix) MAP.panTo(lastFix); }
+function startGps(){
+  if(!("geolocation" in navigator)){ $("#gpsMsg").textContent = "Thiết bị không hỗ trợ GPS"; return; }
+  if(!window.isSecureContext){ $("#gpsMsg").textContent = "GPS cần mở app qua https (xem hướng dẫn cài)"; return; }
+  navigator.geolocation.watchPosition(p=>{
+    const ll = [p.coords.latitude, p.coords.longitude], acc = p.coords.accuracy;
+    lastFix = ll;
+    if(!GPS_DOT){
+      GPS_ACC = L.circle(ll, {radius:acc, color:"#1c7ed6", weight:1, fillOpacity:0.12, interactive:false}).addTo(MAP);
+      GPS_DOT = L.circleMarker(ll, {radius:8, color:"#fff", weight:3, fillColor:"#1c7ed6", fillOpacity:1, interactive:false}).addTo(MAP);
+    }else{ GPS_DOT.setLatLng(ll); GPS_ACC.setLatLng(ll).setRadius(acc); }
+    GPS_DOT.bringToFront();
+    $("#gpsMsg").textContent = "📍 Sai số ±" + Math.round(acc) + " m";
+    if(follow) MAP.panTo(ll);
+  }, err=>{
+    $("#gpsMsg").textContent = "Không lấy được vị trí: " + (err.code === 1 ? "chưa cho phép dùng vị trí" : err.code === 2 ? "chưa bắt được GPS" : "hết thời gian chờ");
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+}
+$("#locBtn").onclick = ()=>{ if(lastFix) MAP.setView(lastFix, Math.max(MAP.getZoom(), 19)); else toast("Chưa có vị trí GPS", true); };
+$("#followBtn").onclick = ()=>setFollow(!follow);
+
+// ---------- ảnh vệ tinh ----------
+function setSat(on){
+  if(on) SAT.addTo(MAP); else MAP.removeLayer(SAT);
+  $("#satBtn").classList.toggle("on", on); $("#satBtn").setAttribute("aria-pressed", on);
+  dbSet("sat", on);
+}
+$("#satBtn").onclick = ()=>setSat(!MAP.hasLayer(SAT));
+// Tải sẵn ô ảnh của khung bao các lô, zoom 15–19 (ô zoom sâu hơn sẽ phóng to từ zoom 19)
+function tileList(){
+  const b = L.latLngBounds([...TIDX.values()].map(v=>v.m.getLatLng())).pad(0.05), out = [];
+  const t = (lat, lng, z)=>{ const n = 2**z, x = Math.floor((lng+180)/360*n), r = lat*Math.PI/180;
+    return [x, Math.floor((1 - Math.log(Math.tan(r) + 1/Math.cos(r))/Math.PI)/2*n)]; };
+  for(let z=15; z<=19; z++){
+    const [x0, y0] = t(b.getNorth(), b.getWest(), z), [x1, y1] = t(b.getSouth(), b.getEast(), z);
+    for(let x=x0; x<=x1; x++) for(let y=y0; y<=y1; y++) out.push(TILE_URL.replace("{z}", z).replace("{x}", x).replace("{y}", y));
+  }
+  return out;
+}
+$("#tileDl").onclick = async ()=>{
+  if(!DATA){ toast("Chưa mở bản đồ", true); return; }
+  if(!navigator.onLine){ toast("Cần có mạng để tải ảnh", true); return; }
+  if(!("caches" in window)){ $("#tileInfo").textContent = "Trình duyệt không hỗ trợ lưu ảnh offline."; return; }
+  const urls = tileList(), c = await caches.open(TILE_CACHE);
+  const b = $("#tileDl"); b.disabled = true;
+  let done = 0, fail = 0, bytes = 0, i = 0;
+  const worker = async ()=>{
+    while(i < urls.length){
+      const u = urls[i++];
+      try{
+        if(!(await c.match(u))){ const r = await fetch(u, {mode:"cors"}); if(!r.ok) throw 0; const bl = await r.clone().blob(); bytes += bl.size; await c.put(u, r); }
+      }catch{ fail++; }
+      done++;
+      if(done % 10 === 0 || done === urls.length) $("#tileInfo").textContent = "Đang tải " + done + "/" + urls.length + " ô ảnh (" + (bytes/1048576).toFixed(1) + " MB)…";
+    }
+  };
+  await Promise.all([1,2,3,4,5,6].map(worker));
+  b.disabled = false;
+  $("#tileInfo").textContent = "Xong: " + (urls.length - fail) + "/" + urls.length + " ô ảnh, ~" + (bytes/1048576).toFixed(1) + " MB" + (fail ? " — " + fail + " ô lỗi, bấm lại để thử tiếp" : ". Ra vườn mất sóng vẫn xem được (bật nút 🛰).");
+  await dbSet("tilesAt", nowIso());
+};
+
+// ---------- xuất CSV đúng định dạng "Import cây từ CSV" của tool ----------
+// Cột bắt buộc: ma_cay, plot_code, cay_trong, row, col, lat, lng, giong, ngay_trong, trang_thai
+// Cây chưa kiểm: trang_thai để TRỐNG → tool giữ trạng thái cũ. Cây "không có cây": không xuất dòng.
+function buildCsv(plotCodes){
+  const head = ["ma_cay","plot_code","cay_trong","row","col","lat","lng","giong","ngay_trong","trang_thai","ngay_kiem","nguoi_kiem","ghi_chu","da_kiem"];
+  const e = v => { const s = v == null ? "" : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const rows = []; let skipped = 0;
+  for(const code of plotCodes){
+    const list = [...(DATA.trees[code] || []), ...ADDED.filter(a=>a.plot === code)];
+    for(const t of list){
+      const s = SURVEY[t.ma_cay];
+      if(s && s.st === "khong_co"){ skipped++; continue; }
+      const [lat, lng] = posOf(t);
+      rows.push([t.ma_cay, code, t.cay_trong || DATA.plots[code]?.cay_trong || "", t.row, t.col, lat, lng, t.giong, t.ngay_trong,
+                 s ? s.st : "", s ? s.at.slice(0,10) : "", s ? (s.by || $("#nameIn").value.trim()) : "", s ? s.note : "", s ? 1 : 0].map(e).join(","));
+    }
+  }
+  return {text: "﻿" + head.join(",") + "\r\n" + rows.join("\r\n") + "\r\n", n: rows.length, skipped};
+}
+function fileName(scope){ const n = ($("#nameIn").value.trim() || "").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/gi,"d").replace(/[^A-Za-z0-9]+/g,"");
+  return "kiemdem_" + scope + "_" + today().replace(/-/g,"") + (n ? "_" + n : "") + ".csv"; }
+function surveyedPlots(){ return [...new Set(Object.keys(SURVEY).map(k=>TIDX.get(k)?.plot).filter(Boolean))]; }
+async function doExport(scope, share){
+  if(!DATA){ toast("Chưa mở bản đồ", true); return; }
+  const codes = scope === "cur" ? [CUR] : surveyedPlots();
+  if(!codes.length){ toast("Chưa kiểm cây nào", true); return; }
+  const {text, n, skipped} = buildCsv(codes);
+  const name = fileName(scope === "cur" ? CUR : "TATCA"), file = new File([text], name, {type:"text/csv"});
+  if(share){
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:name}); }catch(e){ if(e.name !== "AbortError") toast("Không chia sẻ được: " + e.message, true); return; }
+    }else{ toast("Máy không hỗ trợ chia sẻ file — dùng nút Xuất CSV", true); return; }
+  }else{
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }
+  lastExport = nowIso(); dirty = 0; await dbSet("lastExport", lastExport); await dbSet("dirty", 0);
+  toast("Đã xuất " + name + " — " + n + " cây" + (skipped ? ", bỏ " + skipped + " cây không có" : ""));
+  updateMenu();
+}
+$("#expCur").onclick = ()=>doExport("cur", false);
+$("#expAll").onclick = ()=>doExport("all", false);
+$("#shareCur").onclick = ()=>doExport("cur", true);
+
+// ---------- menu ----------
+function updateMenu(){
+  if(!DATA){ $("#mapInfo").textContent = "Chưa mở bản đồ."; $("#expInfo").textContent = ""; return; }
+  const n = Object.values(DATA.trees).reduce((s,a)=>s+a.length, 0), sv = Object.keys(SURVEY).length;
+  $("#mapInfo").textContent = "Đang dùng: " + DATA.source + " · " + Object.keys(DATA.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây · mở lúc " + DATA.loadedAt.replace("T"," ");
+  $("#expInfo").textContent = "Đã kiểm " + sv.toLocaleString("vi-VN") + " cây (" + ADDED.length + " cây thêm mới)" + (lastExport ? " · xuất lần cuối " + lastExport.replace("T"," ") : " · chưa xuất lần nào");
+  $("#menuWarn").innerHTML = dirty > 0 && sv ? `<div class="note">⚠ Có thay đổi chưa xuất file. Nhớ <b>Xuất CSV</b> trước khi kết thúc ngày — dữ liệu đang chỉ nằm trên điện thoại này.</div>` : "";
+}
+function openMenu(){ updateMenu(); $("#menuBack").hidden = false; $("#menuClose").focus(); }
+function closeMenu(){ $("#menuBack").hidden = true; $("#menuBtn").focus(); }
+$("#menuBtn").onclick = openMenu; $("#menuClose").onclick = closeMenu;
+$("#menuBack").addEventListener("click", e=>{ if(e.target === $("#menuBack")) closeMenu(); });
+document.addEventListener("keydown", e=>{ if(e.key === "Escape"){ if(!$("#menuBack").hidden) closeMenu(); else if(MODE) setMode(""); else if(SEL) closeSheet(); } });
+$("#openFiles").onclick = $("#emptyOpen").onclick = ()=>{ $("#fileIn").value = ""; $("#fileIn").click(); };
+$("#fileIn").onchange = async ()=>{ const f = [...$("#fileIn").files]; if(f.length){ await openFiles(f); closeMenu(); } };
+$("#nameIn").addEventListener("change", ()=>dbSet("name", $("#nameIn").value.trim()));
+$("#plotSel").onchange = ()=>{ CUR = $("#plotSel").value; dbSet("cur", CUR); updateProgress(); fitPlot(); if(SEL && TIDX.get(SEL)?.plot !== CUR) closeSheet(); };
+$("#legend").innerHTML = `<div><i style="background:#fff;border-color:#495057"></i>Chưa kiểm</div>` +
+  Object.entries(ST).map(([k,o])=>`<div><i style="background:${o.c};${k === "chet" ? "border:3px solid #000" : k === "khong_co" ? "border:2px dashed #000" : ""}"></i>${o.t}</div>`).join("") +
+  `<div><i style="background:#1c7ed6;border:3px solid #fff;box-shadow:0 0 0 1px #1c7ed6"></i>Vị trí của tôi</div>`;
+let wipeArm = false;
+$("#wipe").onclick = async ()=>{
+  if(!wipeArm){ wipeArm = true; $("#wipe").textContent = "Bấm lần nữa để XOÁ " + Object.keys(SURVEY).length + " kết quả"; setTimeout(()=>{ wipeArm = false; $("#wipe").textContent = "🗑 Xoá kết quả kiểm đếm trên máy"; }, 6000); return; }
+  SURVEY = {}; ADDED = []; dirty = 0; await dbSet("survey", SURVEY); await dbSet("added", ADDED); await dbSet("dirty", 0);
+  wipeArm = false; $("#wipe").textContent = "🗑 Xoá kết quả kiểm đếm trên máy";
+  closeSheet(); buildMap(false); toast("Đã xoá kết quả kiểm đếm trên máy");
+};
+window.addEventListener("beforeunload", e=>{ if(dirty > 0 && Object.keys(SURVEY).length){ e.preventDefault(); e.returnValue = ""; } });
+
+// ---------- khởi động ----------
+(async ()=>{
+  initMap();
+  if("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  DATA = await dbGet("data"); SURVEY = await dbGet("survey") || {}; ADDED = await dbGet("added") || [];
+  CUR = await dbGet("cur") || ""; lastExport = await dbGet("lastExport") || ""; dirty = await dbGet("dirty") || 0;
+  $("#nameIn").value = await dbGet("name") || "";
+  buildMap(true);
+  if(await dbGet("sat")) setSat(true);
+  startGps();
+  if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});   // xin trình duyệt không tự xoá dữ liệu
+})();
+</script>
+</body>
+</html>
