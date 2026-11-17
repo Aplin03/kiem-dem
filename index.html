@@ -39,8 +39,14 @@
   /* Khung thông tin cây (dưới màn hình) */
   #sheet{background:#fff;border-top:2px solid var(--brand);padding:10px 12px;padding-bottom:max(10px, env(safe-area-inset-bottom));box-shadow:0 -4px 14px #0002;max-height:58vh;overflow:auto}
   #sheet[hidden]{display:none}
-  .sh-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .sh-head{display:flex;justify-content:flex-start;align-items:flex-start;gap:10px}
+  .sh-head #shClose{flex:none}
   .sh-code{font-size:19px;font-weight:700;color:var(--brand)}
+  /* Chọn hướng đi khi sang cây kế tiếp */
+  .dir-wrap{margin-top:10px}
+  .seg4{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+  .seg4 button{background:#fff;color:var(--fg);border:2px solid var(--line);border-radius:10px;min-height:44px;font-size:14px;font-weight:600;padding:4px}
+  .seg4 button[aria-pressed="true"]{border-color:var(--brand);background:var(--soft);box-shadow:inset 0 0 0 2px var(--brand)}
   .sh-sub{font-size:13px;color:var(--muted)}
   .st-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
   .st-grid button{background:#fff;color:var(--fg);border:2px solid var(--line);min-height:56px;font-size:14px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
@@ -102,12 +108,21 @@
   <!-- Khung thông tin cây -->
   <section id="sheet" hidden aria-labelledby="shCode">
     <div class="sh-head">
+      <button class="ghost" id="shClose" aria-label="Đóng khung cây" style="min-height:40px;padding:4px 14px">✕</button>
       <div><div class="sh-code" id="shCode"></div><div class="sh-sub" id="shSub"></div><div class="sh-sub" id="shTool"></div></div>
-      <button class="ghost" id="shClose" aria-label="Đóng khung cây" style="min-height:40px;padding:4px 12px">✕</button>
     </div>
     <div class="st-grid" id="stGrid" role="group" aria-label="Tình trạng cây"></div>
     <label for="shNote" class="muted">Ghi chú (tuỳ chọn)</label>
     <input id="shNote" placeholder="VD: nghiêng, gốc bị mối…" autocomplete="off">
+    <div class="dir-wrap">
+      <span class="muted">Hướng đi khi sang cây kế tiếp:</span>
+      <div class="seg4" id="dirSeg" role="group" aria-label="Hướng đi khi sang cây kế tiếp">
+        <button type="button" data-dir="lr" aria-pressed="true">→ Trái→Phải</button>
+        <button type="button" data-dir="rl" aria-pressed="false">← Phải→Trái</button>
+        <button type="button" data-dir="tb" aria-pressed="false">↓ Trên→Xuống</button>
+        <button type="button" data-dir="bt" aria-pressed="false">↑ Dưới→Lên</button>
+      </div>
+    </div>
     <div class="row2">
       <button class="ghost" id="shPrev">← Cây trước</button>
       <button id="shNext">Cây kế tiếp →</button>
@@ -291,6 +306,7 @@ function posOf(t){ const s = SURVEY[t.ma_cay]; return s && s.lat != null ? [s.la
 function buildMap(fit){
   $("#empty").hidden = !!DATA;
   if(!DATA) return;
+  _ordCache = {};   // dữ liệu đổi → tính lại thứ tự cây theo hướng
   LAYER_PLOTS.clearLayers(); LAYER_TREES.clearLayers(); TIDX.clear();
   const sel = $("#plotSel"), codes = Object.keys(DATA.trees).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
   sel.innerHTML = codes.map(c=>`<option value="${esc(c)}">Lô ${esc(c)}</option>`).join("");
@@ -354,17 +370,45 @@ function renderSheet(){
   $("#shClear").disabled = !s;
   const {prev, next} = neighbors(SEL);
   $("#shPrev").disabled = !prev; $("#shNext").disabled = !next;
+  $("#shPrev").textContent = DIR_BACK[surveyDir] + " Cây trước";
+  $("#shNext").textContent = "Cây kế tiếp " + DIR_ARROW[surveyDir];
+  document.querySelectorAll("#dirSeg button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.dir === surveyDir ? "true" : "false"));
   const wasHidden = $("#sheet").hidden;
   $("#sheet").hidden = false;
   // Khung cây mở ra làm bản đồ thấp lại → tính lại kích thước rồi đưa cây vào giữa
   if(wasHidden) setTimeout(()=>{ MAP.invalidateSize({pan:false}); MAP.setView(v.m.getLatLng(), Math.max(MAP.getZoom(), 19), {animate:false}); }, 60);
 }
-// Cây trước / kế tiếp: theo thứ tự hàng → cột trong lô (cây thêm mới không nằm trong thứ tự)
+// Hướng đi khi sang "Cây kế tiếp": người kiểm chọn để đi dọc hàng hoặc dọc cột, xuôi hoặc ngược.
+//  lr Trái→Phải: đi dọc HÀNG, cột tăng dần   | rl Phải→Trái: dọc hàng, cột giảm
+//  tb Trên→Xuống: đi dọc CỘT, hàng tăng dần  | bt Dưới→Lên: dọc cột, hàng giảm
+let surveyDir = "lr";
+const DIR_CMP = {
+  lr: (a,b)=> (a.row-b.row) || (a.col-b.col),
+  rl: (a,b)=> (a.row-b.row) || (b.col-a.col),
+  tb: (a,b)=> (a.col-b.col) || (a.row-b.row),
+  bt: (a,b)=> (a.col-b.col) || (b.row-a.row),
+};
+const DIR_ARROW = {lr:"→", rl:"←", tb:"↓", bt:"↑"};
+const DIR_BACK  = {lr:"←", rl:"→", tb:"↑", bt:"↓"};
+let _ordCache = {};   // "plot|dir" → danh sách cây đã sắp xếp theo hướng
+function orderedList(plot){
+  const key = plot + "|" + surveyDir;
+  if(!_ordCache[key]) _ordCache[key] = [...(DATA.trees[plot] || [])].sort(DIR_CMP[surveyDir]);
+  return _ordCache[key];
+}
+// Cây trước / kế tiếp theo hướng đang chọn (cây thêm mới không nằm trong thứ tự)
 function neighbors(code){
   const v = TIDX.get(code); if(!v || v.added) return {};
-  const list = DATA.trees[v.plot] || [], i = list.findIndex(t=>t.ma_cay === code);
+  const list = orderedList(v.plot), i = list.findIndex(t=>t.ma_cay === code);
   return {prev: list[i-1]?.ma_cay, next: list[i+1]?.ma_cay};
 }
+function setDir(dir){
+  if(!DIR_CMP[dir]) return;
+  surveyDir = dir; dbSet("dir", dir);
+  document.querySelectorAll("#dirSeg button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.dir === dir ? "true" : "false"));
+  if(SEL && !$("#sheet").hidden) renderSheet();
+}
+$("#dirSeg").addEventListener("click", e=>{ const b = e.target.closest("button[data-dir]"); if(b) setDir(b.dataset.dir); });
 function setStatus(st){
   const v = TIDX.get(SEL); if(!v) return;
   const prev = SURVEY[SEL] || {};
@@ -579,6 +623,7 @@ window.addEventListener("beforeunload", e=>{ if(dirty > 0 && Object.keys(SURVEY)
   DATA = await dbGet("data"); SURVEY = await dbGet("survey") || {}; ADDED = await dbGet("added") || [];
   CUR = await dbGet("cur") || ""; lastExport = await dbGet("lastExport") || ""; dirty = await dbGet("dirty") || 0;
   $("#nameIn").value = await dbGet("name") || "";
+  setDir(await dbGet("dir") || "lr");
   buildMap(true);
   if(await dbGet("sat")) setSat(true);
   startGps();
