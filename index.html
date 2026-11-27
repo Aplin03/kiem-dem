@@ -161,8 +161,8 @@
         <option value="repair">Đang sửa chữa</option>
         <option value="broken">Hư</option>
       </select>
-      <label for="fShNhaTuoi" class="muted">Thuộc nhà tưới</label>
-      <select id="fShNhaTuoi"><option value="">— chưa gán —</option></select>
+      <label class="muted">Thuộc nhà tưới</label>
+      <div id="fShNhaTuoiRO" style="padding:8px;border:1px solid var(--line);border-radius:8px;background:#f8f9fa;font-size:14px;min-height:38px;display:flex;align-items:center"></div>
       <label class="muted">Máy bơm</label>
       <div class="fac-pump-row"><input id="fShPumpIn" placeholder="Tên máy bơm" autocomplete="off"><button class="ghost" id="fShPumpAdd">+ Thêm</button></div>
       <div class="fac-pump-list" id="fShPumpList"></div>
@@ -507,10 +507,10 @@ function renderFacSheet(){
   $("#fShGiengBox").hidden = f.type !== "gieng";
   if(f.type === "gieng"){
     $("#fShStatus").value = f.status || "active";
-    // Dropdown Nhà tưới: lấy từ FACILITIES type=nha_tuoi
-    const ntList = FACILITIES.filter(x=>x.type==="nha_tuoi");
-    $("#fShNhaTuoi").innerHTML = '<option value="">— chưa gán —</option>' +
-      ntList.map(nt=>`<option value="${esc(nt.ten)}" ${(f.nha_tuoi||"")===nt.ten?"selected":""}>${esc(nt.ten)}</option>`).join("");
+    // Nhà tưới: CHỈ HIỂN THỊ (read-only) — khai báo qua Import CSV trên PC
+    $("#fShNhaTuoiRO").innerHTML = f.nha_tuoi
+      ? '▲ ' + esc(f.nha_tuoi)
+      : '<span class="muted" style="font-size:12.5px">Chưa gán — chỉnh ở Tool (PC) qua Import CSV</span>';
     renderFacPumps();
   }
   $("#fShDelRow").hidden = !f._added;
@@ -536,7 +536,7 @@ function saveFac(){
   f.ghi_chu = $("#fShNote").value.trim();
   if(f.type === "gieng"){
     f.status = $("#fShStatus").value;
-    f.nha_tuoi = ($("#fShNhaTuoi").value || "").trim();
+    // nha_tuoi read-only: không ghi đè, giữ nguyên giá trị đã có từ CSV
   }
   v.m.setIcon(facIcon(f));
   saveFacilities();
