@@ -343,19 +343,44 @@ async function openFiles(files){
     FACILITIES = list;
   }
   const d = {plots:{}, trees:{}, source: names.join(" + "), loadedAt: nowIso()};
-  let bad = 0;
+  let bad = 0, loadedSurvey = 0, loadedAdded = 0;
+  const newSurvey = {}, newAdded = [];
   for(const r of trees){
     const code = r.plot_code || r.plot, row = +r.row, col = +r.col, lat = +r.lat, lng = +r.lng;
     if(!code || !r.ma_cay || isNaN(lat) || isNaN(lng)){ bad++; continue; }
-    (d.trees[code] ||= []).push({ma_cay:r.ma_cay, row, col, lat, lng, cay_trong:r.cay_trong||"", giong:r.giong||"", ngay_trong:r.ngay_trong||"", tool:toolStatus(r)});
+    const tree = {ma_cay:r.ma_cay, row, col, lat, lng, cay_trong:r.cay_trong||"", giong:r.giong||"", ngay_trong:r.ngay_trong||"", tool:toolStatus(r)};
+    // Phân biệt cây thêm mới (file do app xuất): mã có dạng "<plot>-N\d+"
+    const isAdded = r.ma_cay.startsWith(code + "-N");
+    if(isAdded){ newAdded.push(tree); loadedAdded++; }
+    else { (d.trees[code] ||= []).push(tree); }
     if(!d.plots[code]) d.plots[code] = {cay_trong:r.cay_trong||"", polygon:[]};
+    // Nếu file có cột kiểm đếm (trang_thai + da_kiem/ngay_kiem) → nạp vào SURVEY
+    const st = (r.trang_thai||"").trim();
+    const daKiem = (r.da_kiem||"").toString().trim();
+    if(ST[st] && (daKiem === "1" || daKiem === "true" || r.ngay_kiem || r.nguoi_kiem)){
+      const ngay = (r.ngay_kiem||"").trim();
+      const at = /^\d{4}-\d{2}-\d{2}$/.test(ngay) ? ngay + "T00:00" : nowIso();
+      newSurvey[r.ma_cay] = {st, note:(r.ghi_chu||"").trim(), at, by:(r.nguoi_kiem||"").trim()};
+      // Nếu vị trí trong file khác lat/lng gốc của cây (khi tool xuất) thì coi như đã dời
+      // Ở đây chấp nhận lat/lng trong file là vị trí hiện tại (không có cột lat_goc để so)
+      loadedSurvey++;
+    }
   }
   for(const p of plots||[]) if(d.plots[p.code]) d.plots[p.code].polygon = parseWkt(p.polygon_wkt);
   for(const c in d.trees) d.trees[c].sort((a,b)=>a.row-b.row || a.col-b.col);
-  DATA = d; await dbSet("data", DATA); await dbSet("facilities", FACILITIES);
-  const n = Object.values(d.trees).reduce((s,a)=>s+a.length, 0);
+  DATA = d;
+  // Merge SURVEY & ADDED: file ghi đè bản trên máy (trừ khi bản trên máy mới hơn — không có timestamp chuẩn để so, nên ưu tiên file)
+  if(loadedSurvey) SURVEY = {...SURVEY, ...newSurvey};
+  if(loadedAdded){
+    const haveAdded = new Set(ADDED.map(a=>a.ma_cay));
+    for(const t of newAdded) if(!haveAdded.has(t.ma_cay)){ ADDED.push(t); haveAdded.add(t.ma_cay); }
+  }
+  await dbSet("data", DATA); await dbSet("facilities", FACILITIES);
+  if(loadedSurvey || loadedAdded){ await dbSet("survey", SURVEY); await dbSet("added", ADDED); }
+  const n = Object.values(d.trees).reduce((s,a)=>s+a.length, 0) + newAdded.length;
   const facMsg = facs ? " · " + FACILITIES.length + " CSHT" : "";
-  toast("Đã mở " + Object.keys(d.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây" + facMsg + (bad ? " (" + bad + " dòng lỗi)" : ""));
+  const kdMsg = loadedSurvey ? " · nạp " + loadedSurvey + " bản ghi kiểm đếm" + (loadedAdded ? " (trong đó " + loadedAdded + " cây thêm mới)" : "") : "";
+  toast("Đã mở " + Object.keys(d.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây" + facMsg + kdMsg + (bad ? " (" + bad + " dòng lỗi)" : ""));
   if(!plots) toast("Không có plots.csv — sẽ không vẽ ranh giới lô", true);
   buildMap(true);
 }
