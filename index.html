@@ -85,8 +85,8 @@
   #fSheet .fac-pump-list{margin-top:6px}
   #fSheet .fac-pump-list .item{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-top:4px;font-size:14px}
   #fSheet .fac-pump-list .item button{padding:4px 10px;min-height:32px;font-size:13px}
-  .fac-type-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-  .fac-type-pick button{min-height:72px;font-size:16px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center}
+  .fac-type-pick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+  .fac-type-pick button{min-height:72px;font-size:15px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;padding:6px 4px}
 </style>
 </head>
 <body>
@@ -161,6 +161,8 @@
         <option value="repair">Đang sửa chữa</option>
         <option value="broken">Hư</option>
       </select>
+      <label for="fShNhaTuoi" class="muted">Thuộc nhà tưới</label>
+      <select id="fShNhaTuoi"><option value="">— chưa gán —</option></select>
       <label class="muted">Máy bơm</label>
       <div class="fac-pump-row"><input id="fShPumpIn" placeholder="Tên máy bơm" autocomplete="off"><button class="ghost" id="fShPumpAdd">+ Thêm</button></div>
       <div class="fac-pump-list" id="fShPumpList"></div>
@@ -184,6 +186,7 @@
       <div class="fac-type-pick">
         <button data-ft="kho">★ Kho</button>
         <button data-ft="gieng">◼ Giếng</button>
+        <button data-ft="nha_tuoi">▲ Nhà tưới</button>
       </div>
     </div>
   </div>
@@ -333,11 +336,12 @@ async function openFiles(files){
     for(const r of facs){
       const type = (r.type||"").toLowerCase(), ten = (r.ten||"").trim();
       const lat = +r.lat, lng = +r.lng;
-      if(!["kho","gieng"].includes(type) || !ten || isNaN(lat) || isNaN(lng)) continue;
+      if(!["kho","gieng","nha_tuoi"].includes(type) || !ten || isNaN(lat) || isNaN(lng)) continue;
       const f = {id: r.id || newFacId(), type, ten, lat, lng, ghi_chu: r.ghi_chu||"", _added:false};
       if(type === "gieng"){
         f.status = ["active","repair","broken"].includes((r.status||"").toLowerCase()) ? r.status.toLowerCase() : "active";
         f.may_bom = (r.may_bom||"").split(/[;|]/).map(s=>s.trim()).filter(Boolean);
+        f.nha_tuoi = (r.nha_tuoi||"").trim();
       }
       list.push(f);
     }
@@ -462,6 +466,9 @@ function facIcon(f){
   if(f.type === "kho"){
     return L.divIcon({className:"fac-mk", html:'<svg width="24" height="24" viewBox="0 0 24 24"><polygon points="12,1 14.8,8.6 23,8.6 16.4,13.6 19,21 12,16.4 5,21 7.6,13.6 1,8.6 9.2,8.6" fill="#f76707" stroke="#fff" stroke-width="1.5"/></svg>', iconSize:[24,24], iconAnchor:[12,12]});
   }
+  if(f.type === "nha_tuoi"){
+    return L.divIcon({className:"fac-mk", html:'<svg width="24" height="24" viewBox="0 0 24 24"><polygon points="12,2 22,22 2,22" fill="#1c7ed6" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>', iconSize:[24,24], iconAnchor:[12,14]});
+  }
   const c = (FAC_STATUS[f.status] || FAC_STATUS.active).c;
   return L.divIcon({className:"fac-mk", html:`<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="${c}" stroke="#fff" stroke-width="2"/></svg>`, iconSize:[20,20], iconAnchor:[10,10]});
 }
@@ -491,13 +498,19 @@ function closeFacSheet(){ FSEL = null; $("#fSheet").hidden = true; setMode(""); 
 function renderFacSheet(){
   const v = FIDX.get(FSEL); if(!v){ closeFacSheet(); return; }
   const f = v.f;
-  $("#fShName").textContent = (f.type === "kho" ? "★ " : "◼ ") + (f.ten || "—") + (f._added ? " (thêm mới)" : "");
-  $("#fShSub").textContent = (f.type === "kho" ? "Kho" : "Giếng") + " · " + f.lat.toFixed(6) + ", " + f.lng.toFixed(6);
+  const icon = f.type === "kho" ? "★ " : f.type === "nha_tuoi" ? "▲ " : "◼ ";
+  const lbl = f.type === "kho" ? "Kho" : f.type === "nha_tuoi" ? "Nhà tưới" : "Giếng";
+  $("#fShName").textContent = icon + (f.ten || "—") + (f._added ? " (thêm mới)" : "");
+  $("#fShSub").textContent = lbl + " · " + f.lat.toFixed(6) + ", " + f.lng.toFixed(6);
   $("#fShTen").value = f.ten || "";
   $("#fShNote").value = f.ghi_chu || "";
   $("#fShGiengBox").hidden = f.type !== "gieng";
   if(f.type === "gieng"){
     $("#fShStatus").value = f.status || "active";
+    // Dropdown Nhà tưới: lấy từ FACILITIES type=nha_tuoi
+    const ntList = FACILITIES.filter(x=>x.type==="nha_tuoi");
+    $("#fShNhaTuoi").innerHTML = '<option value="">— chưa gán —</option>' +
+      ntList.map(nt=>`<option value="${esc(nt.ten)}" ${(f.nha_tuoi||"")===nt.ten?"selected":""}>${esc(nt.ten)}</option>`).join("");
     renderFacPumps();
   }
   $("#fShDelRow").hidden = !f._added;
@@ -523,6 +536,7 @@ function saveFac(){
   f.ghi_chu = $("#fShNote").value.trim();
   if(f.type === "gieng"){
     f.status = $("#fShStatus").value;
+    f.nha_tuoi = ($("#fShNhaTuoi").value || "").trim();
   }
   v.m.setIcon(facIcon(f));
   saveFacilities();
@@ -696,15 +710,17 @@ function onMapClick(e){
   }
   if(MODE === "addFac"){
     const ft = MODE_ARG;
-    const f = {id: newFacId(), type: ft, ten: ft === "kho" ? "Kho mới" : "Giếng mới",
+    const defName = ft === "kho" ? "Kho mới" : ft === "nha_tuoi" ? "Nhà tưới mới" : "Giếng mới";
+    const f = {id: newFacId(), type: ft, ten: defName,
                lat: +e.latlng.lat.toFixed(7), lng: +e.latlng.lng.toFixed(7), ghi_chu: "", _added: true};
-    if(ft === "gieng"){ f.status = "active"; f.may_bom = []; }
+    if(ft === "gieng"){ f.status = "active"; f.may_bom = []; f.nha_tuoi = ""; }
     FACILITIES.push(f);
     const m = L.marker([f.lat, f.lng], {icon: facIcon(f)});
     m.on("click", ev=>{ L.DomEvent.stopPropagation(ev); onFacTap(f.id); });
     m.addTo(LAYER_FAC); FIDX.set(f.id, {f, m});
     saveFacilities(); setMode(""); FSEL = f.id; renderFacSheet();
-    toast("Đã thêm " + (ft === "kho" ? "kho" : "giếng") + " — nhập tên và lưu");
+    const lbl = ft === "kho" ? "kho" : ft === "nha_tuoi" ? "nhà tưới" : "giếng";
+    toast("Đã thêm " + lbl + " — nhập tên và lưu");
     return;
   }
   if(MODE === "move" && SEL){
@@ -849,11 +865,12 @@ $("#shareCur").onclick = ()=>doExport("cur", true);
 // ---------- Export CSHT (facilities.csv) ----------
 // Định dạng khớp Tool_NTBP: type,ten,lat,lng,ghi_chu,status,may_bom (may_bom ngăn cách ;)
 function buildFacCsv(){
-  const head = ["type","ten","lat","lng","ghi_chu","status","may_bom"];
+  const head = ["type","ten","lat","lng","ghi_chu","status","may_bom","nha_tuoi"];
   const e = v => { const s = v == null ? "" : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
   const rows = FACILITIES.map(f=>[f.type, f.ten, f.lat, f.lng, f.ghi_chu||"",
     f.type === "gieng" ? (f.status||"active") : "",
-    f.type === "gieng" ? (f.may_bom||[]).join(";") : ""].map(e).join(","));
+    f.type === "gieng" ? (f.may_bom||[]).join(";") : "",
+    f.type === "gieng" ? (f.nha_tuoi||"") : ""].map(e).join(","));
   return {text: "﻿" + head.join(",") + "\r\n" + rows.join("\r\n") + "\r\n", n: rows.length};
 }
 async function doFacExport(share){
@@ -885,9 +902,9 @@ function updateMenu(){
   const n = Object.values(DATA.trees).reduce((s,a)=>s+a.length, 0), sv = Object.keys(SURVEY).length;
   $("#mapInfo").textContent = "Đang dùng: " + DATA.source + " · " + Object.keys(DATA.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây · mở lúc " + DATA.loadedAt.replace("T"," ");
   $("#expInfo").textContent = "Đã kiểm " + sv.toLocaleString("vi-VN") + " cây (" + ADDED.length + " cây thêm mới)" + (lastExport ? " · xuất lần cuối " + lastExport.replace("T"," ") : " · chưa xuất lần nào");
-  const nKho = FACILITIES.filter(f=>f.type==="kho").length, nGi = FACILITIES.filter(f=>f.type==="gieng").length;
+  const nKho = FACILITIES.filter(f=>f.type==="kho").length, nGi = FACILITIES.filter(f=>f.type==="gieng").length, nNt = FACILITIES.filter(f=>f.type==="nha_tuoi").length;
   const nAddedFac = FACILITIES.filter(f=>f._added).length;
-  $("#facExpInfo").textContent = FACILITIES.length ? (FACILITIES.length + " CSHT (★ Kho: " + nKho + " · ◼ Giếng: " + nGi + ")" + (nAddedFac ? " — " + nAddedFac + " thêm mới chưa xuất" : "")) : "Chưa có CSHT nào. Mở file facilities.csv từ tool, hoặc chấm thêm bằng nút ★ trên bản đồ.";
+  $("#facExpInfo").textContent = FACILITIES.length ? (FACILITIES.length + " CSHT (★ Kho: " + nKho + " · ◼ Giếng: " + nGi + " · ▲ Nhà tưới: " + nNt + ")" + (nAddedFac ? " — " + nAddedFac + " thêm mới chưa xuất" : "")) : "Chưa có CSHT nào. Mở file facilities.csv từ tool, hoặc chấm thêm bằng nút ★ trên bản đồ.";
   $("#menuWarn").innerHTML = dirty > 0 && sv ? `<div class="note">⚠ Có thay đổi chưa xuất file. Nhớ <b>Xuất CSV</b> trước khi kết thúc ngày — dữ liệu đang chỉ nằm trên điện thoại này.</div>` : "";
 }
 function openMenu(){ updateMenu(); $("#menuBack").hidden = false; $("#menuClose").focus(); }
@@ -904,6 +921,7 @@ $("#legend").innerHTML = `<div><i style="background:#fff;border-color:#495057"><
   `<div><i style="background:#1c7ed6;border:3px solid #fff;box-shadow:0 0 0 1px #1c7ed6"></i>Vị trí của tôi</div>` +
   `<div style="grid-column:1/-1;margin-top:4px;border-top:1px dashed var(--line);padding-top:4px"><b>CSHT:</b></div>` +
   `<div><span style="color:#f76707;font-size:16px;line-height:1">★</span> Kho</div>` +
+  `<div><span style="color:#1c7ed6;font-size:16px;line-height:1">▲</span> Nhà tưới</div>` +
   `<div><i style="background:#2f9e44;border-radius:0"></i>Giếng hoạt động</div>` +
   `<div><i style="background:#fab005;border-radius:0"></i>Giếng sửa chữa</div>` +
   `<div><i style="background:#ff0000;border-radius:0"></i>Giếng hư</div>`;

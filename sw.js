@@ -2,7 +2,7 @@
 //  - "app"  : file của app (HTML, Leaflet, icon) → lấy từ cache trước, có mạng thì cập nhật ngầm
 //  - "tiles": ô ảnh vệ tinh đã xem / đã tải sẵn → lấy từ cache, không có mới tải mạng
 // Đổi số phiên bản khi sửa app để điện thoại nhận bản mới.
-const APP_CACHE = "kiemdem-app-v6";
+const APP_CACHE = "kiemdem-app-v7";
 const TILE_CACHE = "kiemdem-tiles-v1";
 // Không đưa "./" vào: một số server trả 404 cho thư mục → cả bước cài thất bại.
 const APP_FILES = [
