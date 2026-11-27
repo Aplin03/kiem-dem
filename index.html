@@ -249,6 +249,7 @@ const $ = s => document.querySelector(s);
 const esc = s => (s==null ? "" : String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ST = {   // cùng màu với tool trên PC
   song:     {t:"Khoẻ",          c:"#2f9e44"},
+  trong_dam:{t:"Trồng dặm",     c:"#4dabf7"},
   benh_nhe: {t:"Bệnh nhẹ",      c:"#fab005"},
   benh_vua: {t:"Bệnh vừa",      c:"#f76707"},
   benh_nang:{t:"Bệnh nặng",     c:"#9c36b5"},
