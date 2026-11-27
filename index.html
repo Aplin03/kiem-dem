@@ -543,7 +543,7 @@ $("#facPickBack").addEventListener("click", e=>{
   $("#facPickBack").hidden = true;
   setMode("addFac", "Chạm vào vị trí của " + (ft === "kho" ? "★ Kho" : "◼ Giếng") + " trên bản đồ");
   MODE_ARG = ft;
-};
+});
 function updateProgress(){
   if(!DATA){ $("#progTxt").textContent = "Chưa có bản đồ"; $("#progBar").style.width = "0"; return; }
   const list = plotTrees(CUR), done = list.filter(v=>SURVEY[v.t.ma_cay]).length;
