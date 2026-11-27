@@ -77,6 +77,16 @@
   .plot-lbl::before{display:none}
   #empty{position:absolute;inset:0;z-index:600;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
   #empty[hidden]{display:none}
+  /* CSHT (Cơ sở hạ tầng) */
+  .fac-mk{background:transparent !important;border:0 !important}
+  .fac-mk svg{filter:drop-shadow(0 1px 2px #0006)}
+  #fSheet .fac-pump-row{display:flex;gap:6px;margin-top:4px}
+  #fSheet .fac-pump-row input{flex:1}
+  #fSheet .fac-pump-list{margin-top:6px}
+  #fSheet .fac-pump-list .item{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-top:4px;font-size:14px}
+  #fSheet .fac-pump-list .item button{padding:4px 10px;min-height:32px;font-size:13px}
+  .fac-type-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .fac-type-pick button{min-height:72px;font-size:16px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -95,7 +105,9 @@
       <button id="locBtn" aria-label="Về vị trí của tôi" title="Về vị trí của tôi">◎</button>
       <button id="followBtn" aria-label="Bám theo vị trí của tôi" aria-pressed="false" title="Bám theo vị trí">➤</button>
       <button id="satBtn" aria-label="Bật/tắt ảnh vệ tinh" aria-pressed="false" title="Ảnh vệ tinh">🛰</button>
+      <button id="facLayerBtn" aria-label="Ẩn/hiện CSHT" aria-pressed="true" title="Ẩn/hiện CSHT">🏭</button>
       <button id="addBtn" aria-label="Thêm cây mới" title="Thêm cây">＋</button>
+      <button id="addFacBtn" aria-label="Thêm CSHT" title="Thêm CSHT (kho/giếng)">★</button>
     </div>
     <div id="gpsMsg" aria-live="polite"></div>
     <div id="empty">
@@ -134,6 +146,48 @@
     <label class="chk"><input type="checkbox" id="autoNext" checked> Tự sang cây kế tiếp sau khi chọn tình trạng</label>
   </section>
 
+  <!-- Khung thông tin CSHT (kho / giếng) -->
+  <section id="fSheet" hidden aria-labelledby="fShName">
+    <div class="sh-head">
+      <div><div class="sh-code" id="fShName"></div><div class="sh-sub" id="fShSub"></div></div>
+      <button class="ghost" id="fShClose" aria-label="Đóng khung CSHT" style="min-height:40px;padding:4px 12px">✕</button>
+    </div>
+    <label for="fShTen" class="muted">Tên <span style="color:#b00">*</span></label>
+    <input id="fShTen" autocomplete="off">
+    <div id="fShGiengBox" hidden>
+      <label for="fShStatus" class="muted">Trạng thái</label>
+      <select id="fShStatus">
+        <option value="active">Hoạt động</option>
+        <option value="repair">Đang sửa chữa</option>
+        <option value="broken">Hư</option>
+      </select>
+      <label class="muted">Máy bơm</label>
+      <div class="fac-pump-row"><input id="fShPumpIn" placeholder="Tên máy bơm" autocomplete="off"><button class="ghost" id="fShPumpAdd">+ Thêm</button></div>
+      <div class="fac-pump-list" id="fShPumpList"></div>
+    </div>
+    <label for="fShNote" class="muted">Ghi chú</label>
+    <input id="fShNote" autocomplete="off">
+    <div class="row2">
+      <button class="ghost" id="fShMove">✥ Dời vị trí</button>
+      <button id="fShSave">💾 Lưu</button>
+    </div>
+    <div class="row2" id="fShDelRow" hidden>
+      <button class="ghost" id="fShDel" style="color:#b00;border-color:#b00">🗑 Bỏ CSHT thêm mới</button>
+    </div>
+  </section>
+
+  <!-- Hộp chọn loại CSHT khi bấm thêm -->
+  <div class="dlg-back" id="facPickBack" hidden>
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="facPickTitle">
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="facPickTitle">Thêm CSHT</h2><button class="ghost" id="facPickClose" style="min-height:40px">Đóng</button></div>
+      <div class="muted">Chọn loại CSHT cần đánh dấu, sau đó chạm lên bản đồ để đặt vị trí.</div>
+      <div class="fac-type-pick">
+        <button data-ft="kho">★ Kho</button>
+        <button data-ft="gieng">◼ Giếng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Menu -->
   <div class="dlg-back" id="menuBack" hidden>
     <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
@@ -159,6 +213,14 @@
         <button class="ghost" id="shareCur">↗ Chia sẻ CSV lô đang xem (Zalo, OneDrive…)</button>
       </div>
       <div class="muted" style="margin-top:6px">Trên máy tính: tool → tab <b>Thiết lập lô</b> → <b>Import cây từ CSV</b> → chọn file này. Nên bấm <b>Tạo backup</b> (tab Cài đặt) trước khi Import.</div>
+
+      <h3>3b. Xuất CSHT (facilities.csv)</h3>
+      <div class="muted" id="facExpInfo"></div>
+      <div class="btns" style="margin-top:6px">
+        <button id="expFac">⬇ Xuất CSV cơ sở hạ tầng</button>
+        <button class="ghost" id="shareFac">↗ Chia sẻ CSV CSHT</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Trên máy tính: tool → <b>Quản trị → Import vị trí → Cơ sở hạ tầng</b> → Import CSV. Trùng tên + loại sẽ ghi đè toạ độ (giữ lịch sử sửa chữa).</div>
 
       <h3>4. Ảnh vệ tinh offline</h3>
       <div class="muted">Khi đang có mạng (nên dùng Wi-Fi), tải sẵn ảnh vệ tinh khu vực các lô để ra vườn mất sóng vẫn xem được.</div>
@@ -199,8 +261,15 @@ const TILE_CACHE = "kiemdem-tiles-v1";
 let DATA = null;          // {plots:{code:{cay_trong, polygon}}, trees:{code:[tree]}, source, loadedAt}
 let SURVEY = {};          // ma_cay → {st, note, lat, lng, moved, at, by}
 let ADDED = [];           // cây thêm mới: {ma_cay, plot, row, col, lat, lng}
-let CUR = "", SEL = null, MODE = "", lastExport = "", dirty = 0;
+let CUR = "", SEL = null, MODE = "", MODE_ARG = "", lastExport = "", dirty = 0;
 const TIDX = new Map();   // ma_cay → {t, plot, m, added}
+// CSHT (Cơ sở hạ tầng) — tương thích facilities.csv của tool NTBP
+// Mỗi record: {id, type:"kho"|"gieng", ten, lat, lng, ghi_chu, status?, may_bom?:[], _added:bool}
+let FACILITIES = [];
+let FSEL = null;          // id CSHT đang chọn
+let LAYER_FAC = null;
+let facLayerOn = true;
+const FIDX = new Map();   // id → {f, m}
 
 // ---------- tiện ích ----------
 function toast(msg, bad){ const t = $("#toast"); t.textContent = msg; t.className = "show" + (bad ? " bad" : ""); clearTimeout(toast._t); toast._t = setTimeout(()=>t.className = "", 2200); }
@@ -215,10 +284,11 @@ let saveTimer = null;
 function saveSurvey(){   // gộp các lần bấm liên tiếp, ghi trong ~0,3 giây
   dirty++; clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
-    try{ await dbSet("survey", SURVEY); await dbSet("added", ADDED); await dbSet("dirty", dirty); }
+    try{ await dbSet("survey", SURVEY); await dbSet("added", ADDED); await dbSet("facilities", FACILITIES); await dbSet("dirty", dirty); }
     catch(e){ toast("Lỗi lưu trên máy: " + e.message, true); }
   }, 300);
 }
+function saveFacilities(){ saveSurvey(); }
 
 // ---------- đọc CSV ----------
 function parseCsv(text){
@@ -248,14 +318,30 @@ function toolStatus(r){
   return k;
 }
 async function openFiles(files){
-  let trees = null, plots = null, names = [];
+  let trees = null, plots = null, facs = null, names = [];
   for(const f of files){
     const rows = parseCsv(await f.text()); if(rows.length < 2) continue;
     const h = rows[0].map(x=>x.toLowerCase().replace(/^﻿/, ""));
     if(h.includes("ma_cay")) { trees = toObjs(rows); names.push(f.name); }
     else if(h.includes("polygon_wkt")) { plots = toObjs(rows); names.push(f.name); }
+    else if(h.includes("type") && h.includes("ten") && h.includes("lat") && h.includes("lng")){ facs = toObjs(rows); names.push(f.name); }
   }
   if(!trees){ toast("Chưa có file trees.csv (cần cột ma_cay)", true); return; }
+  if(facs){
+    const list = [];
+    for(const r of facs){
+      const type = (r.type||"").toLowerCase(), ten = (r.ten||"").trim();
+      const lat = +r.lat, lng = +r.lng;
+      if(!["kho","gieng"].includes(type) || !ten || isNaN(lat) || isNaN(lng)) continue;
+      const f = {id: r.id || newFacId(), type, ten, lat, lng, ghi_chu: r.ghi_chu||"", _added:false};
+      if(type === "gieng"){
+        f.status = ["active","repair","broken"].includes((r.status||"").toLowerCase()) ? r.status.toLowerCase() : "active";
+        f.may_bom = (r.may_bom||"").split(/[;|]/).map(s=>s.trim()).filter(Boolean);
+      }
+      list.push(f);
+    }
+    FACILITIES = list;
+  }
   const d = {plots:{}, trees:{}, source: names.join(" + "), loadedAt: nowIso()};
   let bad = 0;
   for(const r of trees){
@@ -266,11 +352,18 @@ async function openFiles(files){
   }
   for(const p of plots||[]) if(d.plots[p.code]) d.plots[p.code].polygon = parseWkt(p.polygon_wkt);
   for(const c in d.trees) d.trees[c].sort((a,b)=>a.row-b.row || a.col-b.col);
-  DATA = d; await dbSet("data", DATA);
+  DATA = d; await dbSet("data", DATA); await dbSet("facilities", FACILITIES);
   const n = Object.values(d.trees).reduce((s,a)=>s+a.length, 0);
-  toast("Đã mở " + Object.keys(d.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây" + (bad ? " (" + bad + " dòng lỗi)" : ""));
+  const facMsg = facs ? " · " + FACILITIES.length + " CSHT" : "";
+  toast("Đã mở " + Object.keys(d.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây" + facMsg + (bad ? " (" + bad + " dòng lỗi)" : ""));
   if(!plots) toast("Không có plots.csv — sẽ không vẽ ranh giới lô", true);
   buildMap(true);
+}
+
+// Sinh ID CSHT theo cùng pattern tool: fac_YYYYMMDD_HHMMSS_<rand3>
+function newFacId(){
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return "fac_" + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + "_" + Math.random().toString(36).slice(2,5);
 }
 
 // ---------- bản đồ ----------
@@ -284,6 +377,7 @@ function initMap(){
   SAT = L.tileLayer(TILE_URL, {maxZoom:22, maxNativeZoom:19, attribution:"Ảnh © Esri"});
   LAYER_PLOTS = L.layerGroup().addTo(MAP);
   LAYER_TREES = L.layerGroup().addTo(MAP);
+  LAYER_FAC = L.layerGroup().addTo(MAP);
   MAP.on("click", onMapClick);
   MAP.on("zoomend", ()=>{ const r = radius(); for(const v of TIDX.values()) v.m.setRadius(v.t.ma_cay === SEL ? r*1.6+2 : r); });
   MAP.on("dragstart", ()=>{ if(follow) setFollow(false); });
@@ -326,6 +420,7 @@ function buildMap(fit){
   };
   for(const [code, list] of Object.entries(DATA.trees)) for(const t of list) add(t, code, false);
   for(const t of ADDED) add(t, t.plot, true);
+  drawFacilities();
   if(fit) fitPlot();
   updateProgress(); updateMenu();
 }
@@ -334,6 +429,121 @@ function fitPlot(){
   if(pts.length) MAP.fitBounds(L.latLngBounds(pts), {padding:[20,20]});
 }
 function plotTrees(code){ return [...TIDX.values()].filter(v=>v.plot === code); }
+
+// ---------- CSHT ----------
+const FAC_STATUS = {active:{t:"Hoạt động", c:"#2f9e44"}, repair:{t:"Đang sửa chữa", c:"#fab005"}, broken:{t:"Hư", c:"#ff0000"}};
+function facIcon(f){
+  if(f.type === "kho"){
+    return L.divIcon({className:"fac-mk", html:'<svg width="24" height="24" viewBox="0 0 24 24"><polygon points="12,1 14.8,8.6 23,8.6 16.4,13.6 19,21 12,16.4 5,21 7.6,13.6 1,8.6 9.2,8.6" fill="#f76707" stroke="#fff" stroke-width="1.5"/></svg>', iconSize:[24,24], iconAnchor:[12,12]});
+  }
+  const c = (FAC_STATUS[f.status] || FAC_STATUS.active).c;
+  return L.divIcon({className:"fac-mk", html:`<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="${c}" stroke="#fff" stroke-width="2"/></svg>`, iconSize:[20,20], iconAnchor:[10,10]});
+}
+function drawFacilities(){
+  if(!LAYER_FAC) return;
+  LAYER_FAC.clearLayers(); FIDX.clear();
+  for(const f of FACILITIES){
+    if(typeof f.lat !== "number" || typeof f.lng !== "number") continue;
+    const m = L.marker([f.lat, f.lng], {icon: facIcon(f)});
+    m.on("click", e=>{ L.DomEvent.stopPropagation(e); onFacTap(f.id); });
+    m.addTo(LAYER_FAC);
+    FIDX.set(f.id, {f, m});
+  }
+}
+function setFacLayer(on){
+  facLayerOn = on;
+  if(on) LAYER_FAC.addTo(MAP); else MAP.removeLayer(LAYER_FAC);
+  $("#facLayerBtn").classList.toggle("on", on); $("#facLayerBtn").setAttribute("aria-pressed", on);
+  dbSet("facLayer", on);
+}
+function onFacTap(id){
+  if(MODE === "add" || MODE === "move" || MODE === "addFac") return;
+  if(MODE === "facMove"){ return; }
+  FSEL = id; renderFacSheet();
+}
+function closeFacSheet(){ FSEL = null; $("#fSheet").hidden = true; setMode(""); MAP.invalidateSize(); }
+function renderFacSheet(){
+  const v = FIDX.get(FSEL); if(!v){ closeFacSheet(); return; }
+  const f = v.f;
+  $("#fShName").textContent = (f.type === "kho" ? "★ " : "◼ ") + (f.ten || "—") + (f._added ? " (thêm mới)" : "");
+  $("#fShSub").textContent = (f.type === "kho" ? "Kho" : "Giếng") + " · " + f.lat.toFixed(6) + ", " + f.lng.toFixed(6);
+  $("#fShTen").value = f.ten || "";
+  $("#fShNote").value = f.ghi_chu || "";
+  $("#fShGiengBox").hidden = f.type !== "gieng";
+  if(f.type === "gieng"){
+    $("#fShStatus").value = f.status || "active";
+    renderFacPumps();
+  }
+  $("#fShDelRow").hidden = !f._added;
+  // Close tree sheet if open (can only show 1)
+  if(!$("#sheet").hidden) closeSheet();
+  const wasHidden = $("#fSheet").hidden;
+  $("#fSheet").hidden = false;
+  if(wasHidden) setTimeout(()=>{ MAP.invalidateSize({pan:false}); MAP.setView(v.m.getLatLng(), Math.max(MAP.getZoom(), 18), {animate:false}); }, 60);
+}
+function renderFacPumps(){
+  const v = FIDX.get(FSEL); if(!v) return;
+  const pumps = v.f.may_bom || [];
+  $("#fShPumpList").innerHTML = pumps.length
+    ? pumps.map((p, i)=>`<div class="item"><span>${esc(p)}</span><button class="ghost" data-pidx="${i}">✕ Xoá</button></div>`).join("")
+    : '<div class="muted" style="font-size:13px">Chưa có máy bơm. Giếng cần ít nhất 1 máy bơm khi lưu vào tool.</div>';
+}
+function saveFac(){
+  const v = FIDX.get(FSEL); if(!v) return;
+  const f = v.f;
+  const ten = $("#fShTen").value.trim();
+  if(!ten){ toast("Nhập tên CSHT", true); return; }
+  f.ten = ten;
+  f.ghi_chu = $("#fShNote").value.trim();
+  if(f.type === "gieng"){
+    f.status = $("#fShStatus").value;
+  }
+  v.m.setIcon(facIcon(f));
+  saveFacilities();
+  toast("Đã lưu CSHT");
+  renderFacSheet();
+}
+function deleteAddedFac(){
+  const v = FIDX.get(FSEL); if(!v || !v.f._added) return;
+  FACILITIES = FACILITIES.filter(x=>x.id !== FSEL);
+  LAYER_FAC.removeLayer(v.m); FIDX.delete(FSEL); FSEL = null;
+  saveFacilities(); $("#fSheet").hidden = true;
+  toast("Đã bỏ CSHT thêm mới");
+}
+$("#fShClose").onclick = closeFacSheet;
+$("#fShSave").onclick = saveFac;
+$("#fShDel").onclick = deleteAddedFac;
+$("#fShMove").onclick = ()=>{ if(FSEL) setMode("facMove", "Chạm vào đúng vị trí của CSHT trên bản đồ"); };
+$("#fShPumpAdd").onclick = ()=>{
+  const v = FIDX.get(FSEL); if(!v) return;
+  const nm = $("#fShPumpIn").value.trim(); if(!nm) return;
+  v.f.may_bom = v.f.may_bom || [];
+  if(v.f.may_bom.some(x=>x.toLowerCase() === nm.toLowerCase())){ toast("Máy bơm đã có", true); return; }
+  v.f.may_bom.push(nm);
+  $("#fShPumpIn").value = "";
+  saveFacilities(); renderFacPumps();
+};
+$("#fShPumpList").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-pidx]"); if(!b) return;
+  const v = FIDX.get(FSEL); if(!v) return;
+  v.f.may_bom.splice(+b.dataset.pidx, 1);
+  saveFacilities(); renderFacPumps();
+});
+$("#facLayerBtn").onclick = ()=>setFacLayer(!facLayerOn);
+$("#addFacBtn").onclick = ()=>{
+  if(!DATA){ toast("Chưa mở bản đồ", true); return; }
+  if(MODE === "addFac"){ setMode(""); return; }
+  $("#facPickBack").hidden = false;
+};
+$("#facPickClose").onclick = ()=>{ $("#facPickBack").hidden = true; };
+$("#facPickBack").addEventListener("click", e=>{
+  if(e.target === $("#facPickBack")){ $("#facPickBack").hidden = true; return; }
+  const b = e.target.closest("button[data-ft]"); if(!b) return;
+  const ft = b.dataset.ft;
+  $("#facPickBack").hidden = true;
+  setMode("addFac", "Chạm vào vị trí của " + (ft === "kho" ? "★ Kho" : "◼ Giếng") + " trên bản đồ");
+  MODE_ARG = ft;
+};
 function updateProgress(){
   if(!DATA){ $("#progTxt").textContent = "Chưa có bản đồ"; $("#progBar").style.width = "0"; return; }
   const list = plotTrees(CUR), done = list.filter(v=>SURVEY[v.t.ma_cay]).length;
@@ -344,8 +554,9 @@ function updateProgress(){
 
 // ---------- chọn cây / khung thông tin ----------
 function onTreeTap(code){
-  if(MODE === "add") return;    // đang thêm cây: chạm bản đồ, không chọn cây
-  if(MODE === "move") return;
+  if(MODE === "add" || MODE === "addFac") return;    // đang thêm cây/CSHT: chạm bản đồ, không chọn cây
+  if(MODE === "move" || MODE === "facMove") return;
+  if(FSEL){ FSEL = null; $("#fSheet").hidden = true; }
   selectTree(code, false);
 }
 function selectTree(code, pan){
@@ -436,8 +647,10 @@ $("#shClear").onclick = ()=>{
 // ---------- dời vị trí / thêm cây: chạm vào bản đồ ----------
 function setMode(m, text){
   MODE = m;
+  if(!m) MODE_ARG = "";
   $("#modeBar").hidden = !m; $("#modeTxt").textContent = text || "";
   $("#addBtn").classList.toggle("on", m === "add");
+  $("#addFacBtn").classList.toggle("on", m === "addFac");
   MAP.getContainer().style.cursor = m ? "crosshair" : "";
 }
 $("#modeCancel").onclick = ()=>setMode("");
@@ -448,6 +661,26 @@ $("#addBtn").onclick = ()=>{
   setMode("add", "Chạm vào vị trí cây mới (lô " + CUR + ")");
 };
 function onMapClick(e){
+  if(MODE === "facMove" && FSEL){
+    const v = FIDX.get(FSEL); if(!v) return;
+    v.f.lat = +e.latlng.lat.toFixed(7); v.f.lng = +e.latlng.lng.toFixed(7);
+    v.m.setLatLng(e.latlng);
+    saveFacilities(); setMode(""); renderFacSheet(); toast("Đã dời vị trí CSHT");
+    return;
+  }
+  if(MODE === "addFac"){
+    const ft = MODE_ARG;
+    const f = {id: newFacId(), type: ft, ten: ft === "kho" ? "Kho mới" : "Giếng mới",
+               lat: +e.latlng.lat.toFixed(7), lng: +e.latlng.lng.toFixed(7), ghi_chu: "", _added: true};
+    if(ft === "gieng"){ f.status = "active"; f.may_bom = []; }
+    FACILITIES.push(f);
+    const m = L.marker([f.lat, f.lng], {icon: facIcon(f)});
+    m.on("click", ev=>{ L.DomEvent.stopPropagation(ev); onFacTap(f.id); });
+    m.addTo(LAYER_FAC); FIDX.set(f.id, {f, m});
+    saveFacilities(); setMode(""); FSEL = f.id; renderFacSheet();
+    toast("Đã thêm " + (ft === "kho" ? "kho" : "giếng") + " — nhập tên và lưu");
+    return;
+  }
   if(MODE === "move" && SEL){
     const v = TIDX.get(SEL), ll = e.latlng;
     v.m.setLatLng(ll);
@@ -587,26 +820,67 @@ $("#expCur").onclick = ()=>doExport("cur", false);
 $("#expAll").onclick = ()=>doExport("all", false);
 $("#shareCur").onclick = ()=>doExport("cur", true);
 
+// ---------- Export CSHT (facilities.csv) ----------
+// Định dạng khớp Tool_NTBP: type,ten,lat,lng,ghi_chu,status,may_bom (may_bom ngăn cách ;)
+function buildFacCsv(){
+  const head = ["type","ten","lat","lng","ghi_chu","status","may_bom"];
+  const e = v => { const s = v == null ? "" : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const rows = FACILITIES.map(f=>[f.type, f.ten, f.lat, f.lng, f.ghi_chu||"",
+    f.type === "gieng" ? (f.status||"active") : "",
+    f.type === "gieng" ? (f.may_bom||[]).join(";") : ""].map(e).join(","));
+  return {text: "﻿" + head.join(",") + "\r\n" + rows.join("\r\n") + "\r\n", n: rows.length};
+}
+async function doFacExport(share){
+  if(!FACILITIES.length){ toast("Chưa có CSHT nào", true); return; }
+  const n = ($("#nameIn").value.trim() || "").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/gi,"d").replace(/[^A-Za-z0-9]+/g,"");
+  const name = "facilities_" + today().replace(/-/g,"") + (n ? "_" + n : "") + ".csv";
+  const {text, n:cnt} = buildFacCsv();
+  const file = new File([text], name, {type:"text/csv"});
+  if(share){
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:name}); }catch(e){ if(e.name !== "AbortError") toast("Không chia sẻ được: " + e.message, true); return; }
+    }else{ toast("Máy không hỗ trợ chia sẻ file — dùng nút Xuất CSV", true); return; }
+  }else{
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }
+  // Clear _added flag on CSHT đã xuất (coi như đã bàn giao sang tool)
+  for(const f of FACILITIES) f._added = false;
+  await dbSet("facilities", FACILITIES);
+  toast("Đã xuất " + name + " — " + cnt + " CSHT");
+  updateMenu();
+}
+$("#expFac").onclick = ()=>doFacExport(false);
+$("#shareFac").onclick = ()=>doFacExport(true);
+
 // ---------- menu ----------
 function updateMenu(){
   if(!DATA){ $("#mapInfo").textContent = "Chưa mở bản đồ."; $("#expInfo").textContent = ""; return; }
   const n = Object.values(DATA.trees).reduce((s,a)=>s+a.length, 0), sv = Object.keys(SURVEY).length;
   $("#mapInfo").textContent = "Đang dùng: " + DATA.source + " · " + Object.keys(DATA.trees).length + " lô · " + n.toLocaleString("vi-VN") + " cây · mở lúc " + DATA.loadedAt.replace("T"," ");
   $("#expInfo").textContent = "Đã kiểm " + sv.toLocaleString("vi-VN") + " cây (" + ADDED.length + " cây thêm mới)" + (lastExport ? " · xuất lần cuối " + lastExport.replace("T"," ") : " · chưa xuất lần nào");
+  const nKho = FACILITIES.filter(f=>f.type==="kho").length, nGi = FACILITIES.filter(f=>f.type==="gieng").length;
+  const nAddedFac = FACILITIES.filter(f=>f._added).length;
+  $("#facExpInfo").textContent = FACILITIES.length ? (FACILITIES.length + " CSHT (★ Kho: " + nKho + " · ◼ Giếng: " + nGi + ")" + (nAddedFac ? " — " + nAddedFac + " thêm mới chưa xuất" : "")) : "Chưa có CSHT nào. Mở file facilities.csv từ tool, hoặc chấm thêm bằng nút ★ trên bản đồ.";
   $("#menuWarn").innerHTML = dirty > 0 && sv ? `<div class="note">⚠ Có thay đổi chưa xuất file. Nhớ <b>Xuất CSV</b> trước khi kết thúc ngày — dữ liệu đang chỉ nằm trên điện thoại này.</div>` : "";
 }
 function openMenu(){ updateMenu(); $("#menuBack").hidden = false; $("#menuClose").focus(); }
 function closeMenu(){ $("#menuBack").hidden = true; $("#menuBtn").focus(); }
 $("#menuBtn").onclick = openMenu; $("#menuClose").onclick = closeMenu;
 $("#menuBack").addEventListener("click", e=>{ if(e.target === $("#menuBack")) closeMenu(); });
-document.addEventListener("keydown", e=>{ if(e.key === "Escape"){ if(!$("#menuBack").hidden) closeMenu(); else if(MODE) setMode(""); else if(SEL) closeSheet(); } });
+document.addEventListener("keydown", e=>{ if(e.key === "Escape"){ if(!$("#facPickBack").hidden) $("#facPickBack").hidden = true; else if(!$("#menuBack").hidden) closeMenu(); else if(MODE) setMode(""); else if(FSEL) closeFacSheet(); else if(SEL) closeSheet(); } });
 $("#openFiles").onclick = $("#emptyOpen").onclick = ()=>{ $("#fileIn").value = ""; $("#fileIn").click(); };
 $("#fileIn").onchange = async ()=>{ const f = [...$("#fileIn").files]; if(f.length){ await openFiles(f); closeMenu(); } };
 $("#nameIn").addEventListener("change", ()=>dbSet("name", $("#nameIn").value.trim()));
 $("#plotSel").onchange = ()=>{ CUR = $("#plotSel").value; dbSet("cur", CUR); updateProgress(); fitPlot(); if(SEL && TIDX.get(SEL)?.plot !== CUR) closeSheet(); };
 $("#legend").innerHTML = `<div><i style="background:#fff;border-color:#495057"></i>Chưa kiểm</div>` +
   Object.entries(ST).map(([k,o])=>`<div><i style="background:${o.c};${k === "chet" ? "border:3px solid #000" : k === "khong_co" ? "border:2px dashed #000" : ""}"></i>${o.t}</div>`).join("") +
-  `<div><i style="background:#1c7ed6;border:3px solid #fff;box-shadow:0 0 0 1px #1c7ed6"></i>Vị trí của tôi</div>`;
+  `<div><i style="background:#1c7ed6;border:3px solid #fff;box-shadow:0 0 0 1px #1c7ed6"></i>Vị trí của tôi</div>` +
+  `<div style="grid-column:1/-1;margin-top:4px;border-top:1px dashed var(--line);padding-top:4px"><b>CSHT:</b></div>` +
+  `<div><span style="color:#f76707;font-size:16px;line-height:1">★</span> Kho</div>` +
+  `<div><i style="background:#2f9e44;border-radius:0"></i>Giếng hoạt động</div>` +
+  `<div><i style="background:#fab005;border-radius:0"></i>Giếng sửa chữa</div>` +
+  `<div><i style="background:#ff0000;border-radius:0"></i>Giếng hư</div>`;
 let wipeArm = false;
 $("#wipe").onclick = async ()=>{
   if(!wipeArm){ wipeArm = true; $("#wipe").textContent = "Bấm lần nữa để XOÁ " + Object.keys(SURVEY).length + " kết quả"; setTimeout(()=>{ wipeArm = false; $("#wipe").textContent = "🗑 Xoá kết quả kiểm đếm trên máy"; }, 6000); return; }
@@ -621,7 +895,9 @@ window.addEventListener("beforeunload", e=>{ if(dirty > 0 && Object.keys(SURVEY)
   initMap();
   if("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(()=>{});
   DATA = await dbGet("data"); SURVEY = await dbGet("survey") || {}; ADDED = await dbGet("added") || [];
+  FACILITIES = await dbGet("facilities") || [];
   CUR = await dbGet("cur") || ""; lastExport = await dbGet("lastExport") || ""; dirty = await dbGet("dirty") || 0;
+  const facOn = await dbGet("facLayer"); if(facOn === false) setFacLayer(false);
   $("#nameIn").value = await dbGet("name") || "";
   setDir(await dbGet("dir") || "lr");
   buildMap(true);
